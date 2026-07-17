@@ -4,52 +4,52 @@ import java.io.Serializable;
 import java.util.Random;
 
 /**
- * Clasificator SVM binar (+1/-1) antrenat cu algoritmul SMO
+ * Binary SVM classifier (+1/-1) trained with the SMO algorithm
  * (Sequential Minimal Optimization), Platt 1998.
  *
- * Rezolva problema duala:
+ * Solves the dual problem:
  *   max    sum_i alpha_i - 0.5 * sum_ij alpha_i alpha_j y_i y_j K(x_i, x_j)
  *   s.t.   0 &lt;= alpha_i &lt;= C
  *          sum_i alpha_i y_i = 0
  *
- * Decizia: f(x) = sum_i alpha_i y_i K(x_i, x) - b
- * Clasa: sign(f(x))
+ * Decision: f(x) = sum_i alpha_i y_i K(x_i, x) - b
+ * Class: sign(f(x))
  *
- * La salvare prin serializare, pastram doar vectorii suport (alpha_i > 0)
- * pentru a minimiza dimensiunea fisierelor.
+ * When saving via serialization, we keep only the support vectors (alpha_i > 0)
+ * to minimize file size.
  */
 public class SVM implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** Kernelul folosit (Sigmoid implicit) */
+    /** The kernel used (Sigmoid by default) */
     private Kernel kernel;
-    /** Vectorii suport (dupa antrenare) */
+    /** The support vectors (after training) */
     private double[][] supportX;
-    /** Etichetele vectorilor suport */
+    /** The support vector labels */
     private double[] supportY;
-    /** Multiplicatorii Lagrange pentru vectorii suport */
+    /** The Lagrange multipliers for the support vectors */
     private double[] supportA;
-    /** Termenul bias (b) */
+    /** The bias term (b) */
     private double b;
-    /** Parametrul de regularizare C */
+    /** The regularization parameter C */
     private double C;
-    /** Tolerante pentru convergenta */
+    /** Convergence tolerance */
     private double tol;
-    /** Numar maxim de iteratii fara modificari */
+    /** Maximum number of iterations without changes */
     private int maxPasses;
-    /** Cache pentru kernel liniar: w = sum(alpha_i * y_i * x_i).
-     *  Transient - se reconstruieste la cerere dupa deserializare.
-     *  Colapseaza f(x) din O(N*D) (peste N support vectors) in O(D) (un singur dot).
+    /** Cache for the linear kernel: w = sum(alpha_i * y_i * x_i).
+     *  Transient - rebuilt on demand after deserialization.
+     *  Collapses f(x) from O(N*D) (over N support vectors) to O(D) (a single dot).
      */
     private transient double[] wLinear;
 
     /**
-     * Constructor cu kernel si parametri SMO.
-     * @param kernel functia nucleu
-     * @param C regularizare (tipic 1.0)
-     * @param tol toleranta (tipic 1e-3)
-     * @param maxPasses iteratii fara schimbari pana la oprire (tipic 10)
+     * Constructor with kernel and SMO parameters.
+     * @param kernel the kernel function
+     * @param C regularization (typically 1.0)
+     * @param tol tolerance (typically 1e-3)
+     * @param maxPasses iterations without changes until stopping (typically 10)
      */
     public SVM(Kernel kernel, double C, double tol, int maxPasses) {
         this.kernel = kernel;
@@ -59,18 +59,18 @@ public class SVM implements Serializable {
     }
 
     /**
-     * Antreneaza clasificatorul pe setul (X, y) cu y in {-1, +1}.
-     * Implementeaza algoritmul SMO simplificat Platt.
+     * Trains the classifier on the set (X, y) with y in {-1, +1}.
+     * Implements Platt's simplified SMO algorithm.
      */
     /**
-     * Pentru kernel liniar, nu e nevoie de matrice kernel (O(n^2) memorie)
-     * - putem tine direct vectorul w = sum(alpha_i * y_i * x_i) in O(n*d).
-     * K(x_i, x_j) = x_i . x_j se calculeaza pe loc in O(d).
+     * For the linear kernel, no kernel matrix is needed (O(n^2) memory)
+     * - we can keep the vector w = sum(alpha_i * y_i * x_i) directly in O(n*d).
+     * K(x_i, x_j) = x_i . x_j is computed on the fly in O(d).
      *
-     * Rezultat: memorie si timp dramatic mai mici pentru n mare.
-     * Ex: n=3000, d=8100:
-     *   - cache full: 72 MB memorie, ~30 min timp
-     *   - fast linear: ~200 KB memorie extra, ~2 min timp
+     * Result: dramatically lower memory and time for large n.
+     * E.g.: n=3000, d=8100:
+     *   - full cache: 72 MB memory, ~30 min time
+     *   - fast linear: ~200 KB extra memory, ~2 min time
      */
     private void trainLinearFast(double[][] X, double[] y) {
         int n = X.length;
@@ -80,11 +80,11 @@ public class SVM implements Serializable {
         int passes = 0;
         Random rng = new Random(42);
 
-        // Pre-calculez K_ii = x_i . x_i (auto-produs scalar) - O(n*d)
+        // Precompute K_ii = x_i . x_i (self dot product) - O(n*d)
         double[] Kii = new double[n];
         for (int i = 0; i < n; i++) Kii[i] = dot(X[i], X[i]);
 
-        // Vectorul w = sum(alpha_i * y_i * x_i) e totul 0 initial
+        // The vector w = sum(alpha_i * y_i * x_i) is all zeros initially
         double[] w = new double[d];
 
         while (passes < maxPasses) {
@@ -126,7 +126,7 @@ public class SVM implements Serializable {
 
                     alpha[i] = aiOld + y[i] * y[j] * (ajOld - alpha[j]);
 
-                    // Actualizeaza w dupa formula:
+                    // Update w using the formula:
                     // w += (alpha_i - aiOld) * y_i * X[i] + (alpha_j - ajOld) * y_j * X[j]
                     double da = (alpha[i] - aiOld) * y[i];
                     double db = (alpha[j] - ajOld) * y[j];
@@ -152,7 +152,7 @@ public class SVM implements Serializable {
             else passes = 0;
         }
 
-        // Salvez vectorii suport (alpha > 0)
+        // Save the support vectors (alpha > 0)
         int svCount = 0;
         for (double a : alpha) if (a > 1e-8) svCount++;
         supportX = new double[svCount][];
@@ -170,7 +170,7 @@ public class SVM implements Serializable {
         this.b = bias;
     }
 
-    /** Produs scalar vectorial (x . y). */
+    /** Vector dot product (x . y). */
     private static double dot(double[] a, double[] b) {
         double s = 0;
         for (int i = 0; i < a.length; i++) s += a[i] * b[i];
@@ -189,7 +189,7 @@ public class SVM implements Serializable {
         int passes = 0;
         Random rng = new Random(42);
 
-        // Cache kernel full (poate fi costisitor pentru n mare, dar simplifica mult)
+        // Full kernel cache (can be expensive for large n, but simplifies a lot)
         double[][] K = new double[n][n];
         for (int i = 0; i < n; i++) {
             for (int j = i; j < n; j++) {
@@ -206,7 +206,7 @@ public class SVM implements Serializable {
                 if ((y[i] * Ei < -tol && alpha[i] < C) ||
                     (y[i] * Ei >  tol && alpha[i] > 0)) {
 
-                    // Alegem al doilea multiplicator la intamplare
+                    // Choose the second multiplier at random
                     int j = i;
                     while (j == i) j = rng.nextInt(n);
                     double Ej = decision(alpha, y, K, j, bias, n) - y[j];
@@ -214,7 +214,7 @@ public class SVM implements Serializable {
                     double aiOld = alpha[i];
                     double ajOld = alpha[j];
 
-                    // Calculeaza L, H
+                    // Compute L, H
                     double L, H;
                     if (y[i] != y[j]) {
                         L = Math.max(0, alpha[j] - alpha[i]);
@@ -253,7 +253,7 @@ public class SVM implements Serializable {
             else passes = 0;
         }
 
-        // Pastreaza doar vectorii suport (alpha > 0)
+        // Keep only the support vectors (alpha > 0)
         int svCount = 0;
         for (double a : alpha) if (a > 1e-8) svCount++;
         supportX = new double[svCount][];
@@ -271,7 +271,7 @@ public class SVM implements Serializable {
         this.b = bias;
     }
 
-    /** Functia de decizie peste setul de antrenare (folosita in SMO). */
+    /** The decision function over the training set (used inside SMO). */
     private double decision(double[] alpha, double[] y, double[][] K,
                              int idx, double bias, int n) {
         double s = 0;
@@ -280,12 +280,12 @@ public class SVM implements Serializable {
     }
 
     /**
-     * @param x vector de trasaturi de clasificat
-     * @return valoarea functiei de decizie
+     * @param x feature vector to classify
+     * @return the value of the decision function
      */
     public double decisionFunction(double[] x) {
-        // Fast path pentru kernel liniar: f(x) = w.x + b
-        // Pentru N=500 si D=8100 reduce 500*8100 operatii la 8100 - ~500x speedup.
+        // Fast path for the linear kernel: f(x) = w.x + b
+        // For N=500 and D=8100 it reduces 500*8100 operations to 8100 - ~500x speedup.
         if (kernel instanceof LinearKernel) {
             if (wLinear == null) buildLinearWeight();
             double s = 0;
@@ -299,7 +299,7 @@ public class SVM implements Serializable {
         return s + b;
     }
 
-    /** Reconstruieste vectorul w din support vectors pentru kernel liniar. */
+    /** Rebuilds the w vector from support vectors for the linear kernel. */
     private void buildLinearWeight() {
         if (supportX == null || supportX.length == 0) {
             wLinear = new double[0];
@@ -315,13 +315,13 @@ public class SVM implements Serializable {
     }
 
     /**
-     * @return +1 daca f(x) &gt;= 0, -1 altfel
+     * @return +1 if f(x) &gt;= 0, -1 otherwise
      */
     public int predict(double[] x) {
         return decisionFunction(x) >= 0 ? 1 : -1;
     }
 
-    /** @return numarul de vectori suport */
+    /** @return the number of support vectors */
     public int numSupportVectors() {
         return supportX == null ? 0 : supportX.length;
     }

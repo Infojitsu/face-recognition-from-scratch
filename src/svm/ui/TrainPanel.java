@@ -14,22 +14,22 @@ import svm.io.Storage;
 import svm.svm.SVM;
 
 /**
- * Panou pentru:
- *   (5) extragere vectori HOG
- *   (6) antrenare un clasificator SVM pentru fiecare persoana
- *   (7) SMO cu kernel Sigmoid (implicit in TrainingPipeline)
- *   + optional: antrenare verificator cap (cerinta 1)
+ * Panel for:
+ *   (5) HOG vector extraction
+ *   (6) training one SVM classifier per person
+ *   (7) SMO with Sigmoid kernel (default in TrainingPipeline)
+ *   + optional: head verifier training (requirement 1)
  *
- * Afiseaza un log text cu progresul antrenarii.
+ * Shows a text log with the training progress.
  */
 public class TrainPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private final JButton btnTrainHead = new JButton("1. Antreneaza detector cap (SVM verificator)");
-    private final JButton btnLoadHead  = new JButton("Incarca detector cap");
-    private final JButton btnExtractHog = new JButton("2. Extrage vectori HOG (salvati in hog_vectors/)");
-    private final JButton btnTrainAll  = new JButton("3. Antreneaza clasificatoare persoane (SMO + Sigmoid)");
+    private final JButton btnTrainHead = new JButton("1. Train head detector (SVM verifier)");
+    private final JButton btnLoadHead  = new JButton("Load head detector");
+    private final JButton btnExtractHog = new JButton("2. Extract HOG vectors (saved in hog_vectors/)");
+    private final JButton btnTrainAll  = new JButton("3. Train person classifiers (SMO + Sigmoid)");
     private final JTextArea log = new JTextArea();
 
     public TrainPanel() {
@@ -47,7 +47,7 @@ public class TrainPanel extends JPanel {
         log.setFont(new Font("Monospaced", Font.PLAIN, 12));
         add(new JScrollPane(log), BorderLayout.CENTER);
 
-        // Redirect System.out la area
+        // Redirect System.out to the text area
         redirectOut();
 
         btnTrainHead.addActionListener(new ActionListener() {
@@ -95,7 +95,7 @@ public class TrainPanel extends JPanel {
                 setButtons(false);
                 try { r.run(); }
                 catch (Throwable t) {
-                    System.out.println("EROARE: " + t.getMessage());
+                    System.out.println("ERROR: " + t.getMessage());
                     t.printStackTrace(System.out);
                 } finally { setButtons(true); }
             }
@@ -113,47 +113,47 @@ public class TrainPanel extends JPanel {
         });
     }
 
-    // ------- Taskuri -------
+    // ------- Tasks -------
 
     private void trainHead() {
-        System.out.println("== Antrenez detector cap (kernel Linear) ==");
+        System.out.println("== Training head detector (Linear kernel) ==");
         File pos = new File(AppContext.HEAD_IMAGES_DIR, "positive");
         File neg = new File(AppContext.HEAD_IMAGES_DIR, "negative");
         if (pos.listFiles() == null || pos.listFiles().length == 0) {
-            System.out.println("Nu exista imagini in " + pos.getAbsolutePath());
-            System.out.println("Adauga imagini cu cap (jpg/png) si fara cap in negative/, apoi reincearca.");
+            System.out.println("There are no images in " + pos.getAbsolutePath());
+            System.out.println("Add images with a head (jpg/png) and without a head in negative/, then retry.");
             return;
         }
         try {
             SVM svm = TrainingPipeline.trainHeadVerifier(pos, neg);
             Storage.save(svm, AppContext.HEAD_VERIFIER);
             AppContext.setHeadVerifier(svm);
-            System.out.println("OK. Vectori suport: " + svm.numSupportVectors());
-            System.out.println("Salvat in " + AppContext.HEAD_VERIFIER.getAbsolutePath());
+            System.out.println("OK. Support vectors: " + svm.numSupportVectors());
+            System.out.println("Saved to " + AppContext.HEAD_VERIFIER.getAbsolutePath());
         } catch (Exception ex) {
-            System.out.println("Esec antrenare: " + ex.getMessage());
+            System.out.println("Training failed: " + ex.getMessage());
         }
     }
 
     private void loadHead() {
         if (!AppContext.HEAD_VERIFIER.exists()) {
-            System.out.println("Nu exista " + AppContext.HEAD_VERIFIER);
+            System.out.println("File does not exist: " + AppContext.HEAD_VERIFIER);
             return;
         }
         try {
             SVM svm = Storage.load(AppContext.HEAD_VERIFIER);
             AppContext.setHeadVerifier(svm);
-            System.out.println("Detector cap incarcat (SV=" + svm.numSupportVectors() + ")");
+            System.out.println("Head detector loaded (SV=" + svm.numSupportVectors() + ")");
         } catch (Exception ex) {
-            System.out.println("Esec incarcare: " + ex.getMessage());
+            System.out.println("Loading failed: " + ex.getMessage());
         }
     }
 
     private void extractHog() {
-        System.out.println("== Extrag vectori HOG din faces/ -> hog_vectors/ ==");
+        System.out.println("== Extracting HOG vectors from faces/ -> hog_vectors/ ==");
         File[] subs = AppContext.FACES_DIR.listFiles(File::isDirectory);
         if (subs == null || subs.length == 0) {
-            System.out.println("Nu exista subfoldere in faces/");
+            System.out.println("There are no subfolders in faces/");
             return;
         }
         for (File sub : subs) {
@@ -176,19 +176,19 @@ public class TrainPanel extends JPanel {
                     ok++;
                 } catch (Exception e) { /* skip */ }
             }
-            System.out.println("  " + sub.getName() + ": " + ok + " vectori");
+            System.out.println("  " + sub.getName() + ": " + ok + " vectors");
         }
-        System.out.println("Gata extragere HOG.");
+        System.out.println("HOG extraction done.");
     }
 
     private void trainAll() {
-        System.out.println("== Antrenez cate un SVM pentru fiecare persoana (SMO + Sigmoid) ==");
+        System.out.println("== Training one SVM per person (SMO + Sigmoid) ==");
         try {
             TrainingPipeline.trainPersonClassifiers(
                     AppContext.FACES_DIR, AppContext.CLASSIFIERS_DIR);
-            System.out.println("Gata. Clasificatoare salvate in " + AppContext.CLASSIFIERS_DIR);
+            System.out.println("Done. Classifiers saved in " + AppContext.CLASSIFIERS_DIR);
         } catch (Exception ex) {
-            System.out.println("Esec: " + ex.getMessage());
+            System.out.println("Failed: " + ex.getMessage());
         }
     }
 }

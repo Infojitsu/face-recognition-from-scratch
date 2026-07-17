@@ -6,22 +6,22 @@ import svm.io.Storage;
 import svm.svm.SVM;
 
 /**
- * Fereastra principala. Organizeaza aplicatia in 4 tab-uri corespunzatoare
- * cerintelor proiectului:
- *   - Capturare (3)
- *   - Vizualizare (4)
- *   - Antrenare (5, 6, 7 si antrenare verificator pentru 1)
- *   - Recunoastere (8)
+ * Main window. Organizes the application into 4 tabs matching
+ * the project requirements:
+ *   - Capture (3)
+ *   - Viewer (4)
+ *   - Training (5, 6, 7 and verifier training for 1)
+ *   - Recognition (8)
  */
 public class MainFrame extends JFrame {
 
     private static final long serialVersionUID = 1L;
 
     public MainFrame() {
-        super("Recunoastere Fete - SVM + HOG + SMO");
+        super("Face Recognition - SVM + HOG + SMO");
         AppContext.ensureDirs();
 
-        // Incarca automat verificatorul cap daca exista
+        // Automatically load the head verifier if it exists
         if (AppContext.HEAD_VERIFIER.exists()) {
             try {
                 SVM svm = Storage.load(AppContext.HEAD_VERIFIER);
@@ -30,10 +30,10 @@ public class MainFrame extends JFrame {
         }
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("1. Capturare",    new CapturePanel());
-        tabs.addTab("2. Vizualizare",  new ViewerPanel());
-        tabs.addTab("3. Antrenare",    new TrainPanel());
-        tabs.addTab("4. Recunoastere", new RecognizePanel());
+        tabs.addTab("1. Capture",     new CapturePanel());
+        tabs.addTab("2. Viewer",      new ViewerPanel());
+        tabs.addTab("3. Training",    new TrainPanel());
+        tabs.addTab("4. Recognition", new RecognizePanel());
 
         setLayout(new BorderLayout());
         add(tabs, BorderLayout.CENTER);
@@ -47,7 +47,7 @@ public class MainFrame extends JFrame {
     private JComponent footer() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         p.setBackground(new Color(36, 38, 44));
-        JLabel l = new JLabel("Bronto | SVM + HOG + SMO | Sigmoid kernel | Java pur");
+        JLabel l = new JLabel("Bronto | SVM + HOG + SMO | Sigmoid kernel | Pure Java");
         l.setForeground(new Color(210, 214, 220));
         p.add(l);
         return p;

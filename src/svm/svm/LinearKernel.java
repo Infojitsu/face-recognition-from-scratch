@@ -1,8 +1,8 @@
 package svm.svm;
 
 /**
- * Kernel liniar K(x,y) = &lt;x,y&gt;. Utilizat optional pentru antrenarea
- * detectorului de cap (mai rapid decat Sigmoid).
+ * Linear kernel K(x,y) = &lt;x,y&gt;. Optionally used for training
+ * the head detector (faster than Sigmoid).
  */
 public class LinearKernel implements Kernel {
 

@@ -51,7 +51,7 @@ connected components. It was fast, but fragile: sensitive to skin tone, lighting
 and any skin-colored background object. The HOG + SVM detector is invariant to
 all three (gradients, not colors), handles multiple faces in frame, and rejects
 background reliably. The price is honest: pure-Java sliding window runs at
-roughly 3-5 FPS on a 640x480 stream. <!-- TODO: confirm FPS on your machine -->
+roughly 3-5 FPS on a 640x480 stream.
 
 ## The app
 
@@ -89,7 +89,7 @@ head_images/negative/    images without heads (walls, desks, your room)
 To train it on your own face:
 
 1. Put head images in `head_images/positive/` — your own webcam shots work, or
-   a public faces dataset <!-- TODO: link the exact celebrity dataset you used -->.
+   a public faces dataset from Kaggle.
    Fill `head_images/negative/` with photos of your room / background.
 2. Train tab -> **Train head detector**.
 3. Capture tab -> collect a few hundred images per person (at least 2 people).

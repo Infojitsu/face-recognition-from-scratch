@@ -1,13 +1,13 @@
 @echo off
 REM ============================================================
-REM Compilare proiect Java - SVM + HOG + SMO
-REM Cerinta: sa se foloseasca javac (JDK) fara niciun IDE.
+REM Java project compilation - SVM + HOG + SMO
+REM Requirement: use javac (JDK) without any IDE.
 REM ============================================================
 
 if not exist bin mkdir bin
 
-REM Enumeram direct toate pachetele (mai sigur decat dir /s /b, care
-REM pe Windows poate produce fisiere cu codare sau BOM gresit).
+REM Enumerate all packages directly (safer than dir /s /b, which
+REM on Windows can produce files with wrong encoding or BOM).
 javac -d bin ^
     src\svm\*.java ^
     src\svm\core\*.java ^
@@ -20,11 +20,11 @@ javac -d bin ^
 
 if errorlevel 1 (
     echo.
-    echo [EROARE] Compilare esuata.
+    echo [ERROR] Compilation failed.
     pause
     exit /b 1
 )
 
 echo.
-echo [OK] Compilare reusita. Fisierele .class sunt in bin\
+echo [OK] Compilation successful. The .class files are in bin\
 pause

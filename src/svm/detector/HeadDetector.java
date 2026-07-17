@@ -10,58 +10,58 @@ import svm.hog.HOG;
 import svm.svm.SVM;
 
 /**
- * Detector de cap bazat pe sliding window + HOG + SVM.
+ * Head detector based on sliding window + HOG + SVM.
  *
- * Strategia (Dalal &amp; Triggs 2005, clasicul):
- *   1. Construim o piramida de scale ale imaginii (ca sa detectam fete
- *      de diferite dimensiuni cu acelasi clasificator 128x128).
- *   2. Pe fiecare scale, parcurgem imaginea cu o fereastra 128x128 si
- *      pas (stride) de STRIDE pixeli.
- *   3. Pentru fiecare pozitie: extragem HOG-ul, aplicam SVM-ul antrenat
- *      pe "cap vs non-cap". Daca scorul e pozitiv, e candidat.
- *   4. Non-Maximum Suppression: eliminam detectiile suprapuse, pastram
- *      cea cu scor SVM mai mare.
+ * The strategy (Dalal &amp; Triggs 2005, the classic):
+ *   1. Build a pyramid of image scales (so we can detect faces
+ *      of different sizes with the same 128x128 classifier).
+ *   2. At each scale, scan the image with a 128x128 window and
+ *      a stride of STRIDE pixels.
+ *   3. For each position: extract the HOG, apply the SVM trained
+ *      on "head vs non-head". If the score is positive, it's a candidate.
+ *   4. Non-Maximum Suppression: remove overlapping detections, keep
+ *      the one with the higher SVM score.
  *
- * Avantaje fata de skin-color:
- *   - Invariant la tonul pielii si iluminare (HOG foloseste gradiente)
- *   - Invariant la fundal - nu mai conteaza draperia, peretele etc.
- *   - Poate detecta mai multe fete simultan
+ * Advantages over skin-color:
+ *   - Invariant to skin tone and lighting (HOG uses gradients)
+ *   - Invariant to background - curtains, walls etc. no longer matter
+ *   - Can detect multiple faces at once
  *
- * Dezavantaj: mai lent. Pe Java pur, aprox 3-5 FPS pentru frame 640x480.
+ * Drawback: slower. In pure Java, about 3-5 FPS for a 640x480 frame.
  */
 public class HeadDetector {
 
-    /** Scale ale piramidei - acopera de la cap departat (153px) pana la cap
-     *  aproape de camera (640px) pe webcam HD. Scale peste min(W,H) sunt
-     *  oricum ignorate in detect(), deci nu e cost pentru webcam VGA. */
+    /** Pyramid scales - cover from a distant head (153px) up to a head
+     *  close to the camera (640px) on an HD webcam. Scales above min(W,H) are
+     *  ignored in detect() anyway, so there is no cost for a VGA webcam. */
     private static final double[] SCALES = { 1.2, 1.6, 2.2, 3.0, 4.0, 5.0 };
-    /** Pasul (stride) al ferestrei ca fractiune din dimensiunea ferestrei */
+    /** Window stride as a fraction of the window size */
     private static final double STRIDE_RATIO = 0.25;
-    /** Prag decizie SVM - mai strict, respinge detectiile marginale (gat, frunte partiala etc). */
+    /** SVM decision threshold - stricter, rejects marginal detections (neck, partial forehead etc). */
     private double threshold = 0.25;
-    /** Overlap maxim pentru NMS (IoU) - mai mic = suprima mai agresiv patrate suprapuse */
+    /** Maximum overlap for NMS (IoU) - smaller = suppresses overlapping squares more aggressively */
     private static final double NMS_OVERLAP = 0.15;
-    /** Prag intersection-over-min-area - suprima cand un patrat mic e continut
-     *  in proportie mare in altul (chiar daca nu e perfect). 0.35 suprima cam
-     *  orice patrat imbricat in altul mai mare. */
+    /** Intersection-over-min-area threshold - suppresses when a small square is
+     *  largely contained inside another (even if not perfectly). 0.35 suppresses
+     *  pretty much any square nested inside a larger one. */
     private static final double NMS_CONTAIN = 0.35;
-    /** Dimensiune minima a laturii patratului detectat */
+    /** Minimum side length of the detected square */
     private static final int MIN_SIDE = 100;
-    /** Varianta minima a pixelilor grayscale in fereastra (0-255).
-     *  Sub acest prag regiunea e prea uniforma (perete, dulap, ceiling) -
-     *  imposibil sa fie cap. Faci brow+skin+eyes genereaza >1000. */
+    /** Minimum grayscale pixel variance inside the window (0-255).
+     *  Below this threshold the region is too uniform (wall, wardrobe, ceiling) -
+     *  it cannot possibly be a head. A face with brow+skin+eyes generates >1000. */
     private static final double MIN_PIXEL_VARIANCE = 400.0;
 
-    /** Clasificatorul SVM cap/non-cap - OBLIGATORIU pentru detectie. */
+    /** The head/non-head SVM classifier - REQUIRED for detection. */
     private SVM classifier;
 
-    /** Stabilizare temporala pentru stream webcam */
+    /** Temporal stabilization for the webcam stream */
     private Rect lastHead;
     private int framesSinceLastSeen;
     private static final int MAX_COAST_FRAMES = 3;
     private boolean trackingEnabled = false;
 
-    /** Scoruri SVM pentru ultimul apel detect(), in ordinea detectiilor returnate. */
+    /** SVM scores for the last detect() call, in the order of the returned detections. */
     private List<Double> lastDetectScores = new ArrayList<>();
 
     public HeadDetector() {}
@@ -70,18 +70,18 @@ public class HeadDetector {
         this.classifier = classifier;
     }
 
-    /** Seteaza clasificatorul (dupa antrenare sau incarcare). */
+    /** Sets the classifier (after training or loading). */
     public void setVerifier(SVM c) { this.classifier = c; }
 
-    /** Seteaza pragul SVM (default 0). Mai mic = mai multe detectii. */
+    /** Sets the SVM threshold (default 0). Smaller = more detections. */
     public void setThreshold(double t) { this.threshold = t; }
 
-    /** @return pragul curent de decizie SVM. */
+    /** @return the current SVM decision threshold. */
     public double getThreshold() { return threshold; }
 
-    /** @return lista scorurilor SVM pentru ultimul detect(), in aceeasi
-     *  ordine cu Rect-urile returnate. Lista e gola daca detect() nu a
-     *  returnat nimic. */
+    /** @return the list of SVM scores for the last detect(), in the same
+     *  order as the returned Rects. The list is empty if detect() returned
+     *  nothing. */
     public List<Double> getLastDetectScores() { return lastDetectScores; }
 
     public void setTrackingEnabled(boolean on) {
@@ -95,7 +95,7 @@ public class HeadDetector {
     }
 
     /**
-     * Clasa interna pentru o detectie (cu scor SVM).
+     * Inner class for a detection (with SVM score).
      */
     private static class Detection {
         Rect rect;
@@ -104,12 +104,12 @@ public class HeadDetector {
     }
 
     /**
-     * Detecteaza toate capetele din imagine.
-     * @return lista de Rect (patrate), sortata dupa scor SVM descrescator
+     * Detects all heads in the image.
+     * @return list of Rects (squares), sorted by SVM score descending
      */
     public List<Rect> detect(Image img) {
         if (classifier == null) {
-            // Fara SVM antrenat nu putem detecta.
+            // Without a trained SVM we cannot detect.
             return Collections.emptyList();
         }
 
@@ -117,7 +117,7 @@ public class HeadDetector {
         int W = img.getWidth();
         int H = img.getHeight();
 
-        // Parcurgere piramida
+        // Pyramid traversal
         for (double scale : SCALES) {
             int winSize = (int)(HOG.IMG * scale);
             if (winSize > Math.min(W, H)) break;
@@ -130,8 +130,8 @@ public class HeadDetector {
                     Image win = img.crop(x, y, x + winSize - 1, y + winSize - 1)
                                    .scale(HOG.IMG, HOG.IMG);
                     double[][] gray = win.toGrayscale();
-                    // Filtru rapid: regiuni aproape uniforme (pereti, dulap,
-                    // tavan) au varianta mica => sar peste HOG si SVM.
+                    // Fast filter: nearly uniform regions (walls, wardrobe,
+                    // ceiling) have low variance => skip HOG and SVM.
                     if (pixelVariance(gray) < MIN_PIXEL_VARIANCE) continue;
                     double[] feat = HOG.compute(gray);
                     double sc = classifier.decisionFunction(feat);
@@ -145,7 +145,7 @@ public class HeadDetector {
         // Non-Maximum Suppression
         List<Detection> kept = nms(all);
 
-        // Sortare dupa scor descrescator
+        // Sort by score descending
         kept.sort(new Comparator<Detection>() {
             @Override public int compare(Detection a, Detection b) {
                 return Double.compare(b.score, a.score);
@@ -162,8 +162,8 @@ public class HeadDetector {
     }
 
     /**
-     * Non-Maximum Suppression: daca doua detectii se suprapun mult,
-     * pastram cea cu scor mai mare.
+     * Non-Maximum Suppression: if two detections overlap heavily,
+     * keep the one with the higher score.
      */
     private List<Detection> nms(List<Detection> dets) {
         List<Detection> sorted = new ArrayList<>(dets);
@@ -181,9 +181,9 @@ public class HeadDetector {
             for (int j = i + 1; j < sorted.size(); j++) {
                 if (suppressed[j]) continue;
                 Detection b = sorted.get(j);
-                // Suprimam daca: (1) IoU ridicat SAU (2) unul e aproape
-                // continut in altul (util pentru scale diferite unde IoU
-                // e mic dar unul e interior celuilalt).
+                // Suppress if: (1) high IoU OR (2) one is almost
+                // contained in the other (useful for different scales where IoU
+                // is small but one is inside the other).
                 if (iou(a.rect, b.rect) > NMS_OVERLAP
                         || containmentRatio(a.rect, b.rect) > NMS_CONTAIN) {
                     suppressed[j] = true;
@@ -193,7 +193,7 @@ public class HeadDetector {
         return kept;
     }
 
-    /** Varianta pixelilor grayscale - indicator de textura/uniformitate. */
+    /** Grayscale pixel variance - an indicator of texture/uniformity. */
     private static double pixelVariance(double[][] gray) {
         int h = gray.length;
         int w = gray[0].length;
@@ -210,7 +210,7 @@ public class HeadDetector {
         return sum2 / n - mean * mean;
     }
 
-    /** Intersection over Union (IoU) pentru doua dreptunghiuri. */
+    /** Intersection over Union (IoU) for two rectangles. */
     private static double iou(Rect a, Rect b) {
         int ix1 = Math.max(a.x, b.x);
         int iy1 = Math.max(a.y, b.y);
@@ -224,9 +224,9 @@ public class HeadDetector {
     }
 
     /**
-     * Raportul intersectie / min(aria_a, aria_b).
-     * Daca un patrat e continut complet in altul, asta returneaza 1.0.
-     * Util cand NMS prin IoU nu prinde patrate de scale foarte diferite.
+     * The ratio intersection / min(area_a, area_b).
+     * If a square is completely contained in another, this returns 1.0.
+     * Useful when IoU-based NMS misses squares of very different scales.
      */
     private static double containmentRatio(Rect a, Rect b) {
         int ix1 = Math.max(a.x, b.x);
@@ -241,9 +241,9 @@ public class HeadDetector {
     }
 
     /**
-     * Cerinta (2): cap cu scor maxim, scalat la 128x128.
-     * NOU: returneaza crop direct din imagine (deja patrat, nu mai are
-     * nevoie de scalare in plus daca deja e 128x128).
+     * Requirement (2): the highest-scoring head, scaled to 128x128.
+     * NEW: returns a crop directly from the image (already square, no
+     * extra scaling needed if it is already 128x128).
      */
     public Image largestHead128(Image img) {
         Rect best = largestHeadRect(img);
@@ -253,17 +253,17 @@ public class HeadDetector {
     }
 
     /**
-     * Returneaza patratul cu scor maxim. Cu tracking pornit: coast pentru
-     * cateva frame-uri cand detectorul rateaza momentan.
+     * Returns the highest-scoring square. With tracking enabled: coasts for
+     * a few frames when the detector momentarily misses.
      */
     public Rect largestHeadRect(Image img) {
         return selectPrimary(detect(img));
     }
 
     /**
-     * Varianta pentru cazul in care apelantul are deja rezultatul detect()
-     * - evita apelarea de doua ori a pipeline-ului sliding window.
-     * Actualizeaza si starea de tracking (coasting).
+     * Variant for when the caller already has the detect() result
+     * - avoids running the sliding-window pipeline twice.
+     * Also updates the tracking (coasting) state.
      */
     public Rect selectPrimary(List<Rect> heads) {
         if (heads.isEmpty()) {

@@ -15,36 +15,36 @@ import svm.util.ImageSource;
 import svm.util.WebcamSource;
 
 /**
- * Panou pentru cerinta (3): preia N imagini de la webcam, detecteaza capul
- * cel mai mare, scaleaza la 128x128 si salveaza in faces/&lt;pseudonim&gt;/.
- * Numele fisierelor: pseudonim_yyyyMMdd_HHmmssSSS.png
+ * Panel for requirement (3): grabs N images from the webcam, detects the
+ * largest head, scales it to 128x128 and saves it in faces/&lt;pseudonym&gt;/.
+ * File names: pseudonym_yyyyMMdd_HHmmssSSS.png
  */
 public class CapturePanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
     private final ImagePanel preview = new ImagePanel();
-    private final JTextField pseudoField = new JTextField("persoana1", 14);
+    private final JTextField pseudoField = new JTextField("person1", 14);
     private final JSpinner countSpinner =
             new JSpinner(new SpinnerNumberModel(500, 10, 5000, 10));
     private final JSlider thresholdSlider = new JSlider(-30, 100, 25);
-    private final JLabel thresholdLabel = new JLabel("Prag: 0.25");
-    private final JButton btnStart = new JButton("Start capturare");
+    private final JLabel thresholdLabel = new JLabel("Threshold: 0.25");
+    private final JButton btnStart = new JButton("Start capture");
     private final JButton btnStop  = new JButton("Stop");
-    private final JLabel status = new JLabel("Gata.");
+    private final JLabel status = new JLabel("Ready.");
     private final JProgressBar progress = new JProgressBar(0, 100);
 
     private Thread worker;
     private volatile boolean running;
 
-    /** Cat de mult peste pragul detectorului trebuie sa fie scorul ca sa
-     *  salvam. Respinge detectiile marginale (porneste 0.15 peste slider). */
+    /** How far above the detector threshold the score must be for us to
+     *  save. Rejects marginal detections (starts 0.15 above the slider). */
     private static final double SAVE_SCORE_MARGIN = 0.15;
-    /** Interval minim intre salvari (ms). Evita 10 poze identice pe secunda
-     *  si permite subiectului sa-si schimbe pozitia/expresia intre save-uri. */
+    /** Minimum interval between saves (ms). Avoids 10 identical photos per second
+     *  and lets the subject change position/expression between saves. */
     private static final long MIN_SAVE_INTERVAL_MS = 100;
-    /** Prag minim pe varianta Laplacian a crop-ului - respinge motion blur
-     *  si frame-urile out-of-focus (fetele clare au >500, blur-ul <200). */
+    /** Minimum threshold on the Laplacian variance of the crop - rejects motion blur
+     *  and out-of-focus frames (sharp faces score >500, blur <200). */
     private static final double MIN_SHARPNESS = 200.0;
 
     public CapturePanel() {
@@ -52,9 +52,9 @@ public class CapturePanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        top.add(new JLabel("Pseudonim:"));
+        top.add(new JLabel("Pseudonym:"));
         top.add(pseudoField);
-        top.add(new JLabel("Nr. imagini:"));
+        top.add(new JLabel("No. of images:"));
         top.add(countSpinner);
         top.add(thresholdLabel);
         thresholdSlider.setPreferredSize(new Dimension(150, 20));
@@ -66,7 +66,7 @@ public class CapturePanel extends JPanel {
         thresholdSlider.addChangeListener(new javax.swing.event.ChangeListener() {
             @Override public void stateChanged(javax.swing.event.ChangeEvent e) {
                 double t = thresholdSlider.getValue() / 100.0;
-                thresholdLabel.setText(String.format("Prag: %.2f", t));
+                thresholdLabel.setText(String.format("Threshold: %.2f", t));
                 AppContext.getHeadDetector().setThreshold(t);
             }
         });
@@ -90,7 +90,7 @@ public class CapturePanel extends JPanel {
     private void start() {
         final String pseudo = pseudoField.getText().trim();
         if (pseudo.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Introdu un pseudonim.");
+            JOptionPane.showMessageDialog(this, "Enter a pseudonym.");
             return;
         }
         final int target = (Integer) countSpinner.getValue();
@@ -119,7 +119,7 @@ public class CapturePanel extends JPanel {
         try {
             src.open();
         } catch (Exception ex) {
-            finishWithError("Sursa indisponibila: " + ex.getMessage());
+            finishWithError("Source unavailable: " + ex.getMessage());
             return;
         }
 
@@ -132,17 +132,17 @@ public class CapturePanel extends JPanel {
             while (running && saved < target) {
                 Image frame;
                 try { frame = src.grab(); }
-                catch (Exception ex) { finishWithError("Eroare captura: " + ex.getMessage()); return; }
+                catch (Exception ex) { finishWithError("Capture error: " + ex.getMessage()); return; }
                 if (frame == null) break;
 
-                // Apel detect() direct (nu largestHeadRect) ca sa avem scorul SVM.
+                // Call detect() directly (not largestHeadRect) so we have the SVM score.
                 List<Rect> heads = det.detect(frame);
                 Rect head = det.selectPrimary(heads);
                 double score = heads.isEmpty() ? 0.0
                         : det.getLastDetectScores().get(0);
 
-                // Preview cu feedback: label arata scorul SVM - operatorul
-                // vede live daca detectia e "ferma" (0.6+) sau "marginala".
+                // Preview with feedback: the label shows the SVM score - the operator
+                // sees live whether the detection is "firm" (0.6+) or "marginal".
                 preview.setImage(frame.toBufferedImage());
                 List<Rect> rs = new ArrayList<>();
                 List<String> ls = new ArrayList<>();
@@ -150,19 +150,19 @@ public class CapturePanel extends JPanel {
                     rs.add(head);
                     ls.add(heads.isEmpty()
                             ? "coast"
-                            : String.format("cap %.2f", score));
+                            : String.format("head %.2f", score));
                 }
                 preview.setRects(rs, ls);
 
-                // === GATE-URI DE CALITATE (toate trebuie satisfacute ca sa salvam) ===
+                // === QUALITY GATES (all must be satisfied for us to save) ===
 
-                // Gate 0: detectie reala (nu din coasting - scorul e zero acolo)
+                // Gate 0: real detection (not from coasting - the score is zero there)
                 if (head == null || heads.isEmpty()) {
                     try { Thread.sleep(30); } catch (InterruptedException ignored) {}
                     continue;
                 }
 
-                // Gate 1: scor mult peste prag (respinge detectiile marginale)
+                // Gate 1: score well above the threshold (rejects marginal detections)
                 double minScoreToSave = det.getThreshold() + SAVE_SCORE_MARGIN;
                 if (score < minScoreToSave) {
                     skippedLowScore++;
@@ -170,7 +170,7 @@ public class CapturePanel extends JPanel {
                     continue;
                 }
 
-                // Gate 2: minim 100ms de la ultima salvare (evita duplicate)
+                // Gate 2: at least 100ms since the last save (avoids duplicates)
                 long now = System.currentTimeMillis();
                 if (now - lastSaveMs < MIN_SAVE_INTERVAL_MS) {
                     skippedTooSoon++;
@@ -178,8 +178,8 @@ public class CapturePanel extends JPanel {
                     continue;
                 }
 
-                // Gate 3: claritate (Laplacian variance pe crop-ul original,
-                // nu pe cel scalat la 128x128 - scalarea ascunde motion blur).
+                // Gate 3: sharpness (Laplacian variance on the original crop,
+                // not the one scaled to 128x128 - scaling hides motion blur).
                 Image origCrop = frame.crop(head.x, head.y,
                         head.x + head.w - 1, head.y + head.h - 1);
                 double[][] origGray = origCrop.toGrayscale();
@@ -190,7 +190,7 @@ public class CapturePanel extends JPanel {
                     continue;
                 }
 
-                // Toate gate-urile trecute: salvam
+                // All gates passed: save
                 Image crop = origCrop.scale(128, 128);
                 String fname = pseudo + "_" + sdf.format(new Date()) + ".png";
                 try {
@@ -206,12 +206,12 @@ public class CapturePanel extends JPanel {
                         @Override public void run() {
                             progress.setValue(s);
                             status.setText(String.format(
-                                "Salvate %d/%d | scor %.2f | claritate %.0f | skip: scor %d, blur %d",
+                                "Saved %d/%d | score %.2f | sharpness %.0f | skip: score %d, blur %d",
                                 s, target, fScore, fSharp, fLow, fBlur));
                         }
                     });
                 } catch (Exception e) {
-                    // ignora o imagine cu eroare de I/O, continua
+                    // ignore an image with an I/O error, continue
                 }
                 try { Thread.sleep(30); } catch (InterruptedException ignored) {}
             }
@@ -230,9 +230,9 @@ public class CapturePanel extends JPanel {
     }
 
     /**
-     * Varianta operatorului Laplacian pe imagine grayscale - metrica
-     * standard pentru sharpness. Valori mari = imagine clara, valori mici
-     * = out-of-focus sau motion blur. L(x,y) = 4*I - I_sus - I_jos - I_st - I_dr.
+     * Variance of the Laplacian operator on a grayscale image - the standard
+     * sharpness metric. High values = sharp image, low values
+     * = out-of-focus or motion blur. L(x,y) = 4*I - I_up - I_down - I_left - I_right.
      */
     private static double laplacianVariance(double[][] gray) {
         int h = gray.length;

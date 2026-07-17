@@ -17,9 +17,9 @@ import svm.util.ImageSource;
 import svm.util.WebcamSource;
 
 /**
- * Panou pentru cerinta (8): preia imagini de la webcam cu un anumit FPS,
- * detecteaza patratele cap, extrage HOG, trece prin fiecare clasificator
- * de persoana. Daca unul returneaza +1, scrie pseudonimul deasupra patratului.
+ * Panel for requirement (8): grabs images from the webcam at a given FPS,
+ * detects the head squares, extracts HOG, runs it through every person
+ * classifier. If one returns +1, writes the pseudonym above the square.
  */
 public class RecognizePanel extends JPanel {
 
@@ -29,18 +29,18 @@ public class RecognizePanel extends JPanel {
     private final JSpinner fpsSpinner =
             new JSpinner(new SpinnerNumberModel(10, 1, 30, 1));
     private final JSlider thresholdSlider = new JSlider(-30, 100, 25);
-    private final JLabel thresholdLabel = new JLabel("Prag: 0.25");
+    private final JLabel thresholdLabel = new JLabel("Threshold: 0.25");
     private final JButton btnStart = new JButton("Start");
     private final JButton btnStop  = new JButton("Stop");
-    private final JLabel status = new JLabel("Gata.");
+    private final JLabel status = new JLabel("Ready.");
 
     private Thread worker;
     private volatile boolean running;
     private List<PersonClassifier> classifiers = new ArrayList<>();
 
-    /** Istoric pentru smoothing temporal: afiseaza eticheta majoritara din
-     *  ultimele SMOOTH_WINDOW frame-uri, nu eticheta frame-ului curent.
-     *  Elimina flicker-ul cand scorurile SVM sunt apropiate intre persoane. */
+    /** History for temporal smoothing: show the majority label from the
+     *  last SMOOTH_WINDOW frames, not the current frame's label.
+     *  Removes flicker when SVM scores are close between persons. */
     private final java.util.Deque<String> labelHistory = new java.util.ArrayDeque<String>();
     private static final int SMOOTH_WINDOW = 5;
 
@@ -65,7 +65,7 @@ public class RecognizePanel extends JPanel {
         thresholdSlider.addChangeListener(new javax.swing.event.ChangeListener() {
             @Override public void stateChanged(javax.swing.event.ChangeEvent e) {
                 double t = thresholdSlider.getValue() / 100.0;
-                thresholdLabel.setText(String.format("Prag: %.2f", t));
+                thresholdLabel.setText(String.format("Threshold: %.2f", t));
                 AppContext.getHeadDetector().setThreshold(t);
             }
         });
@@ -82,18 +82,18 @@ public class RecognizePanel extends JPanel {
         try {
             classifiers = TrainingPipeline.loadAll(AppContext.CLASSIFIERS_DIR);
         } catch (Exception ex) {
-            status.setText("Eroare incarcare clasificatoare: " + ex.getMessage());
+            status.setText("Error loading classifiers: " + ex.getMessage());
             return;
         }
         if (classifiers.isEmpty()) {
-            status.setText("Nu exista clasificatoare in " + AppContext.CLASSIFIERS_DIR);
+            status.setText("There are no classifiers in " + AppContext.CLASSIFIERS_DIR);
             return;
         }
         btnStart.setEnabled(false);
         btnStop.setEnabled(true);
         running = true;
         final int fps = (Integer) fpsSpinner.getValue();
-        status.setText("Recunoastere live | " + classifiers.size() + " clasificatoare");
+        status.setText("Live recognition | " + classifiers.size() + " classifiers");
 
         worker = new Thread(new Runnable() {
             @Override public void run() { loop(fps); }
@@ -112,7 +112,7 @@ public class RecognizePanel extends JPanel {
         try {
             src.open();
         } catch (Exception ex) {
-            finishWithError("Sursa indisponibila: " + ex.getMessage());
+            finishWithError("Source unavailable: " + ex.getMessage());
             return;
         }
         try {
@@ -120,12 +120,12 @@ public class RecognizePanel extends JPanel {
                 long t0 = System.currentTimeMillis();
                 Image frame;
                 try { frame = src.grab(); }
-                catch (Exception ex) { finishWithError("Eroare captura: " + ex.getMessage()); return; }
+                catch (Exception ex) { finishWithError("Capture error: " + ex.getMessage()); return; }
                 if (frame == null) break;
 
-                // O singura parcurgere sliding window per frame; selectPrimary
-                // actualizeaza tracker-ul si returneaza fallback-ul coasted
-                // cand detect() e gol. (Inainte detect() era apelat de 2 ori.)
+                // A single sliding-window pass per frame; selectPrimary
+                // updates the tracker and returns the coasted fallback
+                // when detect() is empty. (Previously detect() was called twice.)
                 List<Rect> heads = new ArrayList<>(det.detect(frame));
                 Rect stabilized = det.selectPrimary(heads);
                 if (stabilized != null && heads.isEmpty()) {
@@ -134,7 +134,7 @@ public class RecognizePanel extends JPanel {
 
                 List<String> labels = new ArrayList<>();
                 for (Rect r : heads) {
-                    // Protectie contra coordonate invalide dupa EMA
+                    // Guard against invalid coordinates after EMA
                     int x1 = Math.max(0, r.x);
                     int y1 = Math.max(0, r.y);
                     int x2 = Math.min(frame.getWidth() - 1, r.x + r.w - 1);
@@ -143,9 +143,9 @@ public class RecognizePanel extends JPanel {
 
                     Image crop = frame.crop(x1, y1, x2, y2).scale(HOG.IMG, HOG.IMG);
                     double[] feat = HOG.compute(crop);
-                    // Urmarim primul SI al doilea scor: daca diferenta e mica,
-                    // e ambiguu (probabil crop partial/neclar), afiseaza "?"
-                    // in loc sa alegem arbitrar intre persoane apropiate la scor.
+                    // Track the first AND second score: if the difference is small,
+                    // it's ambiguous (probably a partial/unclear crop), show "?"
+                    // instead of arbitrarily choosing between close-scoring persons.
                     String best = null;
                     double bestScore = 0;
                     double secondScore = 0;
@@ -160,18 +160,18 @@ public class RecognizePanel extends JPanel {
                             secondScore = s;
                         }
                     }
-                    // Cere marja relativa de 25% fata de urmatorul scor pozitiv.
-                    // Ex: best=0.10, second=0.09 -> raport 0.90 -> "?" (ambigu).
-                    //     best=0.10, second=0.05 -> raport 0.50 -> label valid.
+                    // Require a 25% relative margin over the next positive score.
+                    // E.g.: best=0.10, second=0.09 -> ratio 0.90 -> "?" (ambiguous).
+                    //       best=0.10, second=0.05 -> ratio 0.50 -> valid label.
                     boolean ambiguous = best != null && secondScore > 0
                             && secondScore / bestScore > 0.75;
                     labels.add(best == null || ambiguous ? "?" : best);
                 }
 
-                // Smoothing temporal pe eticheta principala (indexul 0).
-                // In loc sa afisam moda frame-ului curent (care poate flipa
-                // rapid intre persoane cand scorurile sunt aproape), afisam
-                // moda ultimelor SMOOTH_WINDOW frame-uri.
+                // Temporal smoothing on the primary label (index 0).
+                // Instead of showing the current frame's pick (which can flip
+                // quickly between persons when scores are close), show the
+                // mode of the last SMOOTH_WINDOW frames.
                 if (!labels.isEmpty()) {
                     labelHistory.addLast(labels.get(0));
                     while (labelHistory.size() > SMOOTH_WINDOW) labelHistory.removeFirst();
@@ -191,12 +191,12 @@ public class RecognizePanel extends JPanel {
                     labels.set(0, mode);
                 }
 
-                // Dedupe: maxim 1 patrat per persoana etichetata.
-                // Detectorul produce uneori 2-3 ferestre suprapuse sau
-                // false positives labelate pe fundal. Pastram doar cea
-                // cu scor head-detector maxim pentru fiecare eticheta
-                // (heads e sortat descrescator, deci primul = maxim).
-                // Eliminam "?"-urile complet - sunt zgomot vizual.
+                // Dedupe: at most 1 square per labeled person.
+                // The detector sometimes produces 2-3 overlapping windows or
+                // labeled false positives on the background. We keep only the
+                // one with the maximum head-detector score for each label
+                // (heads is sorted descending, so the first = maximum).
+                // Remove the "?" entries entirely - they are visual noise.
                 java.util.Map<String, Integer> firstIdx =
                         new java.util.LinkedHashMap<String, Integer>();
                 for (int i = 0; i < heads.size(); i++) {

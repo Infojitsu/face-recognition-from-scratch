@@ -9,8 +9,8 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
 /**
- * Panou pentru cerinta (4): vizualizare imagini salvate si stergere
- * celor necorespunzatoare (neclare, incadrate rau, etc).
+ * Panel for requirement (4): viewing saved images and deleting
+ * unsuitable ones (blurry, badly framed, etc).
  */
 public class ViewerPanel extends JPanel {
 
@@ -20,9 +20,9 @@ public class ViewerPanel extends JPanel {
     private final DefaultListModel<String> fileModel = new DefaultListModel<>();
     private final JList<String> fileList = new JList<>(fileModel);
     private final JLabel preview = new JLabel("", JLabel.CENTER);
-    private final JButton btnRefresh = new JButton("Reincarca");
-    private final JButton btnDelete  = new JButton("Sterge selectate");
-    private final JButton btnDeletePerson = new JButton("Sterge persoana");
+    private final JButton btnRefresh = new JButton("Reload");
+    private final JButton btnDelete  = new JButton("Delete selected");
+    private final JButton btnDeletePerson = new JButton("Delete person");
     private final JLabel status = new JLabel(" ");
 
     public ViewerPanel() {
@@ -30,7 +30,7 @@ public class ViewerPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        top.add(new JLabel("Persoana:"));
+        top.add(new JLabel("Person:"));
         top.add(personCombo);
         top.add(btnRefresh);
         top.add(btnDelete);
@@ -90,7 +90,7 @@ public class ViewerPanel extends JPanel {
             java.util.Arrays.sort(imgs);
             for (File f : imgs) fileModel.addElement(f.getName());
         }
-        status.setText("Imagini: " + fileModel.size());
+        status.setText("Images: " + fileModel.size());
     }
 
     private void showPreview() {
@@ -101,14 +101,14 @@ public class ViewerPanel extends JPanel {
         try {
             java.awt.Image im = ImageIO.read(f);
             if (im != null) {
-                // scaleaza pentru preview
+                // scale for preview
                 java.awt.Image scaled = im.getScaledInstance(384, 384, java.awt.Image.SCALE_SMOOTH);
                 preview.setIcon(new ImageIcon(scaled));
                 preview.setText("");
             }
         } catch (Exception ex) {
             preview.setIcon(null);
-            preview.setText("Eroare: " + ex.getMessage());
+            preview.setText("Error: " + ex.getMessage());
         }
     }
 
@@ -118,7 +118,7 @@ public class ViewerPanel extends JPanel {
         int[] idx = fileList.getSelectedIndices();
         if (idx.length == 0) return;
         int r = JOptionPane.showConfirmDialog(this,
-                "Sterg " + idx.length + " imagini?", "Confirmare",
+                "Delete " + idx.length + " images?", "Confirmation",
                 JOptionPane.YES_NO_OPTION);
         if (r != JOptionPane.YES_OPTION) return;
         int deleted = 0;
@@ -127,28 +127,28 @@ public class ViewerPanel extends JPanel {
             String name = fileModel.get(idx[i]);
             if (new File(dir, name).delete()) deleted++;
         }
-        status.setText("Sterse: " + deleted);
+        status.setText("Deleted: " + deleted);
         reloadFiles();
     }
 
     /**
-     * Sterge complet folderul unei persoane (toate imaginile din faces/&lt;pseudo&gt;/),
-     * si - dupa confirmare - si clasificatorul persoanei din classifiers/
-     * si vectorii HOG din hog_vectors/.
+     * Completely deletes a person's folder (all images in faces/&lt;pseudo&gt;/),
+     * and - after confirmation - also the person's classifier from classifiers/
+     * and the HOG vectors from hog_vectors/.
      */
     private void deletePerson() {
         String person = (String) personCombo.getSelectedItem();
         if (person == null) {
-            status.setText("Nicio persoana selectata.");
+            status.setText("No person selected.");
             return;
         }
         int r = JOptionPane.showConfirmDialog(this,
-                "Sterg COMPLET persoana '" + person + "'?\n" +
-                "Asta va sterge:\n" +
-                "  - toate imaginile din faces/" + person + "/\n" +
-                "  - vectorii HOG din hog_vectors/" + person + "/ (daca exista)\n" +
-                "  - clasificatorul classifiers/" + person + ".dat (daca exista)",
-                "Confirmare stergere persoana", JOptionPane.YES_NO_OPTION);
+                "COMPLETELY delete person '" + person + "'?\n" +
+                "This will delete:\n" +
+                "  - all images in faces/" + person + "/\n" +
+                "  - the HOG vectors in hog_vectors/" + person + "/ (if any)\n" +
+                "  - the classifier classifiers/" + person + ".dat (if any)",
+                "Confirm person deletion", JOptionPane.YES_NO_OPTION);
         if (r != JOptionPane.YES_OPTION) return;
 
         int deletedFiles = 0;
@@ -157,11 +157,11 @@ public class ViewerPanel extends JPanel {
         File cls = new File(AppContext.CLASSIFIERS_DIR, person + ".dat");
         if (cls.exists() && cls.delete()) deletedFiles++;
 
-        status.setText("Persoana '" + person + "' stearsa. (" + deletedFiles + " fisiere)");
+        status.setText("Person '" + person + "' deleted. (" + deletedFiles + " files)");
         reloadPersons();
     }
 
-    /** Sterge recursiv un folder. Returneaza numarul de fisiere sterse. */
+    /** Recursively deletes a folder. Returns the number of deleted files. */
     private int deleteDir(File dir) {
         if (dir == null || !dir.exists()) return 0;
         int count = 0;

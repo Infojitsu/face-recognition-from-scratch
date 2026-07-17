@@ -6,20 +6,20 @@ import java.lang.reflect.Method;
 import svm.core.Image;
 
 /**
- * Sursa de imagini de la camera web, folosind OpenCV Java.
+ * Image source from the webcam, using OpenCV Java.
  *
- * IMPORTANT: aceasta clasa foloseste reflexia pentru a se lega de
- * org.opencv.videoio.VideoCapture si org.opencv.core.Mat. Astfel, proiectul
- * poate fi compilat si fara jar-ul OpenCV in classpath. La rulare, daca
- * opencv nu este prezent, metoda open() va arunca o exceptie clara.
+ * IMPORTANT: this class uses reflection to bind to
+ * org.opencv.videoio.VideoCapture and org.opencv.core.Mat. This way, the project
+ * can be compiled even without the OpenCV jar on the classpath. At runtime, if
+ * opencv is not present, the open() method throws a clear exception.
  *
- * La rulare, e nevoie de:
+ * At runtime, you need:
  *   -Djava.library.path=lib/opencv
  *   -cp bin;lib/opencv-xxx.jar
  *
- * Cerinta (3) din enunt permite explicit utilizarea OpenCV NUMAI pentru
- * preluarea imaginilor de la camera si desenare. Toti ceilalti algoritmi
- * sunt implementati integral in acest proiect.
+ * Requirement (3) of the problem statement explicitly allows using OpenCV ONLY for
+ * grabbing images from the camera and drawing. All other algorithms
+ * are implemented entirely in this project.
  */
 public class WebcamSource implements ImageSource {
 
@@ -41,8 +41,8 @@ public class WebcamSource implements ImageSource {
             System.loadLibrary(nativeLib);
         } catch (Throwable t) {
             throw new RuntimeException(
-                    "OpenCV indisponibil. Puneti opencv-xxx.jar in lib/ si " +
-                    "folositi -Djava.library.path=. Detaliu: " + t.getMessage());
+                    "OpenCV unavailable. Put opencv-xxx.jar in lib/ and " +
+                    "use -Djava.library.path=. Detail: " + t.getMessage());
         }
         Class<?> vcClass = Class.forName("org.opencv.videoio.VideoCapture");
         videoCapture = vcClass.getConstructor(int.class).newInstance(0);
@@ -54,10 +54,10 @@ public class WebcamSource implements ImageSource {
         mGetCols = matClass.getMethod("cols");
         mGetData = matClass.getMethod("get", int.class, int.class, byte[].class);
 
-        // Asteapta primul frame valid
+        // Wait for the first valid frame
         Boolean ok = (Boolean) mRead.invoke(videoCapture, matFrame);
         if (!ok || (Boolean) mEmpty.invoke(matFrame)) {
-            throw new RuntimeException("Webcam-ul nu a returnat niciun frame.");
+            throw new RuntimeException("The webcam did not return any frame.");
         }
         open = true;
     }
@@ -69,10 +69,10 @@ public class WebcamSource implements ImageSource {
         if (!ok || (Boolean) mEmpty.invoke(matFrame)) return null;
         int rows = (int) mGetRows.invoke(matFrame);
         int cols = (int) mGetCols.invoke(matFrame);
-        byte[] data = new byte[rows * cols * 3];   // BGR 3 canale
+        byte[] data = new byte[rows * cols * 3];   // BGR 3 channels
         mGetData.invoke(matFrame, 0, 0, data);
 
-        // Construieste BufferedImage si converteste BGR -> RGB
+        // Build a BufferedImage and convert BGR -> RGB
         BufferedImage bi = new BufferedImage(cols, rows, BufferedImage.TYPE_3BYTE_BGR);
         byte[] dest = ((DataBufferByte) bi.getRaster().getDataBuffer()).getData();
         System.arraycopy(data, 0, dest, 0, data.length);
@@ -84,7 +84,7 @@ public class WebcamSource implements ImageSource {
         if (videoCapture != null) {
             try {
                 videoCapture.getClass().getMethod("release").invoke(videoCapture);
-            } catch (Exception e) { /* ignorat */ }
+            } catch (Exception e) { /* ignored */ }
         }
         open = false;
     }

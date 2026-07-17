@@ -4,25 +4,25 @@ import java.io.Serializable;
 import svm.svm.SVM;
 
 /**
- * Container serializabil care grupeaza:
- *  - pseudonimul persoanei
- *  - clasificatorul SVM antrenat pentru persoana (imagini pers = +1, restul = -1)
- *  - vectorii HOG folositi la antrenare (cerinta: "datele vectorilor de invatare")
- *  - etichetele corespunzatoare
+ * Serializable container that groups:
+ *  - the person's pseudonym
+ *  - the SVM classifier trained for the person (person images = +1, the rest = -1)
+ *  - the HOG vectors used for training (requirement: "the training vector data")
+ *  - the corresponding labels
  *
- * Fiecare persoana are cate un astfel de fisier: classifiers/&lt;pseudonim&gt;.dat
+ * Each person has one such file: classifiers/&lt;pseudonym&gt;.dat
  */
 public class PersonClassifier implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** Pseudonimul persoanei */
+    /** The person's pseudonym */
     public String pseudonym;
-    /** Clasificatorul SVM antrenat */
+    /** The trained SVM classifier */
     public SVM svm;
-    /** Vectorii de trasaturi HOG folositi la antrenare */
+    /** The HOG feature vectors used for training */
     public double[][] trainingFeatures;
-    /** Etichetele corespunzatoare (+1 / -1) */
+    /** The corresponding labels (+1 / -1) */
     public double[] trainingLabels;
 
     /**

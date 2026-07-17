@@ -3,33 +3,33 @@ package svm.hog;
 import svm.core.Image;
 
 /**
- * Extractor Histogram of Oriented Gradients (HOG), implementat complet de la zero,
- * dupa algoritmul original Dalal &amp; Triggs (2005).
+ * Histogram of Oriented Gradients (HOG) extractor, implemented entirely from scratch,
+ * following the original Dalal &amp; Triggs (2005) algorithm.
  *
- * Parametri impliciti pentru imagine 128x128:
- *  - dimensiune celula 8x8 pixeli
- *  - dimensiune bloc 2x2 celule (16x16 pixeli)
- *  - stride bloc 1 celula (ferestre suprapuse)
- *  - 9 orientari unsigned (0..180 grade)
+ * Default parameters for a 128x128 image:
+ *  - cell size 8x8 pixels
+ *  - block size 2x2 cells (16x16 pixels)
+ *  - block stride 1 cell (overlapping windows)
+ *  - 9 unsigned orientations (0..180 degrees)
  *
- * Vectorul final pentru 128x128: 15*15 blocuri * 36 componente = 8100 valori.
+ * Final vector for 128x128: 15*15 blocks * 36 components = 8100 values.
  */
 public class HOG {
 
-    /** Dimensiune celula (pixeli) */
+    /** Cell size (pixels) */
     public static final int CELL = 8;
-    /** Dimensiune bloc in celule */
+    /** Block size in cells */
     public static final int BLOCK = 2;
-    /** Numar de orientari (0..180 grade) */
+    /** Number of orientations (0..180 degrees) */
     public static final int BINS = 9;
 
-    /** Imagine asteptata 128x128 */
+    /** Expected image 128x128 */
     public static final int IMG = 128;
 
     /**
-     * Calculeaza vectorul HOG pentru o imagine.
-     * @param img imagine (va fi convertita in grayscale)
-     * @return vector de trasaturi normalizat
+     * Computes the HOG vector for an image.
+     * @param img image (will be converted to grayscale)
+     * @return normalized feature vector
      */
     public static double[] compute(Image img) {
         double[][] gray = img.toGrayscale();
@@ -37,13 +37,13 @@ public class HOG {
     }
 
     /**
-     * Calculeaza vectorul HOG pe o matrice grayscale oarecare.
+     * Computes the HOG vector on an arbitrary grayscale matrix.
      */
     public static double[] compute(double[][] gray) {
         int H = gray.length;
         int W = gray[0].length;
 
-        // 1. Gradient Gx si Gy cu masti [-1 0 1] si [-1 0 1]^T
+        // 1. Gradients Gx and Gy with masks [-1 0 1] and [-1 0 1]^T
         double[][] gx = new double[H][W];
         double[][] gy = new double[H][W];
         for (int y = 0; y < H; y++) {
@@ -57,7 +57,7 @@ public class HOG {
             }
         }
 
-        // 2. Magnitudine si orientare (0..180 grade, unsigned)
+        // 2. Magnitude and orientation (0..180 degrees, unsigned)
         double[][] mag = new double[H][W];
         double[][] ang = new double[H][W];
         for (int y = 0; y < H; y++) {
@@ -70,7 +70,7 @@ public class HOG {
             }
         }
 
-        // 3. Histograme per celula (H/CELL x W/CELL celule, BINS valori fiecare)
+        // 3. Per-cell histograms (H/CELL x W/CELL cells, BINS values each)
         int cellsY = H / CELL;
         int cellsX = W / CELL;
         double[][][] hist = new double[cellsY][cellsX][BINS];
@@ -81,13 +81,13 @@ public class HOG {
                 int cy = y / CELL;
                 int cx = x / CELL;
                 if (cy >= cellsY || cx >= cellsX) continue;
-                // Interpolare liniara intre doua bin-uri adiacente
+                // Linear interpolation between two adjacent bins
                 double a = ang[y][x];
                 double m = mag[y][x];
-                double bf = a / binSize;         // pozitie fractionara in bin-uri
+                double bf = a / binSize;         // fractional position in bins
                 int b0 = (int) Math.floor(bf - 0.5);
                 int b1 = b0 + 1;
-                double f = (bf - 0.5) - b0;      // distanta relativa de la b0
+                double f = (bf - 0.5) - b0;      // relative distance from b0
                 int i0 = ((b0 % BINS) + BINS) % BINS;
                 int i1 = ((b1 % BINS) + BINS) % BINS;
                 hist[cy][cx][i0] += m * (1.0 - f);
@@ -95,7 +95,7 @@ public class HOG {
             }
         }
 
-        // 4. Normalizare pe blocuri 2x2 celule cu schema L2-Hys
+        // 4. Normalization over 2x2-cell blocks with the L2-Hys scheme
         int blocksY = cellsY - BLOCK + 1;
         int blocksX = cellsX - BLOCK + 1;
         int blockLen = BLOCK * BLOCK * BINS;
@@ -122,12 +122,12 @@ public class HOG {
                 for (int i = 0; i < v.length; i++) v[i] /= norm;
                 // clip (Hys)
                 for (int i = 0; i < v.length; i++) if (v[i] > clip) v[i] = clip;
-                // renormalizeaza
+                // renormalize
                 norm = 0;
                 for (double vi : v) norm += vi * vi;
                 norm = Math.sqrt(norm + eps);
                 for (int i = 0; i < v.length; i++) v[i] /= norm;
-                // copiaza in vector final
+                // copy into the final vector
                 for (double vi : v) feat[idx++] = vi;
             }
         }

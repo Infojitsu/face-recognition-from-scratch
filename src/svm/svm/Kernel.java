@@ -3,13 +3,13 @@ package svm.svm;
 import java.io.Serializable;
 
 /**
- * Functie nucleu (kernel) pentru SVM. Trebuie sa fie serializabila
- * pentru ca va fi salvata impreuna cu clasificatorul antrenat.
+ * Kernel function for the SVM. Must be serializable
+ * because it is saved together with the trained classifier.
  */
 public interface Kernel extends Serializable {
 
     /**
-     * Calculeaza K(x, y).
+     * Computes K(x, y).
      */
     double apply(double[] x, double[] y);
 }

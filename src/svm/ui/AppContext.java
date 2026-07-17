@@ -5,33 +5,33 @@ import svm.detector.HeadDetector;
 import svm.svm.SVM;
 
 /**
- * Stare partajata intre panouri (singleton simplu).
- * Pastreaza detectorul de cap curent si caile catre foldere.
+ * State shared between panels (simple singleton).
+ * Holds the current head detector and the folder paths.
  */
 public class AppContext {
 
-    /** Folder imagini fete (antrenare detector-cap) - subfoldere positive/, negative/ */
+    /** Face image folder (head-detector training) - subfolders positive/, negative/ */
     public static final File HEAD_IMAGES_DIR = new File("head_images");
-    /** Folder imagini fete per persoana (pseudonim) */
+    /** Per-person face image folder (pseudonym) */
     public static final File FACES_DIR       = new File("faces");
-    /** Folder vectori HOG precalculati (cerinta 7: livrare) */
+    /** Precomputed HOG vector folder (requirement 7: delivery) */
     public static final File HOG_VECTORS_DIR = new File("hog_vectors");
-    /** Folder clasificatoare salvate */
+    /** Saved classifier folder */
     public static final File CLASSIFIERS_DIR = new File("classifiers");
-    /** Fisier verificator SVM cap */
+    /** SVM head verifier file */
     public static final File HEAD_VERIFIER   = new File("classifiers/_head_verifier.dat");
 
     private static HeadDetector headDetector = new HeadDetector();
 
-    /** @return detectorul curent (poate fi cu sau fara verificator) */
+    /** @return the current detector (may be with or without a verifier) */
     public static HeadDetector getHeadDetector() { return headDetector; }
 
-    /** Seteaza verificatorul SVM in detectorul curent. */
+    /** Sets the SVM verifier on the current detector. */
     public static void setHeadVerifier(SVM v) {
         headDetector.setVerifier(v);
     }
 
-    /** Initializeaza folderele daca nu exista. */
+    /** Initializes the folders if they do not exist. */
     public static void ensureDirs() {
         HEAD_IMAGES_DIR.mkdirs();
         new File(HEAD_IMAGES_DIR, "positive").mkdirs();

@@ -8,31 +8,31 @@ import javax.swing.JPanel;
 import svm.core.Rect;
 
 /**
- * Componenta Swing care deseneaza o imagine + dreptunghiuri peste ea.
- * Este folosita in toate panourile pentru afisare webcam / detectii.
+ * Swing component that draws an image + rectangles on top of it.
+ * Used in all panels for webcam / detection display.
  */
 public class ImagePanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    /** Imaginea curenta */
+    /** The current image */
     private BufferedImage image;
-    /** Lista de dreptunghiuri de desenat (cu etichete optionale) */
+    /** The list of rectangles to draw (with optional labels) */
     private final List<Rect> rects = new ArrayList<>();
-    /** Etichete pentru dreptunghiuri (acelasi index) */
+    /** Labels for the rectangles (same index) */
     private final List<String> labels = new ArrayList<>();
 
     public ImagePanel() {
         setBackground(new Color(24, 26, 30));
     }
 
-    /** Actualizeaza imaginea afisata. */
+    /** Updates the displayed image. */
     public synchronized void setImage(BufferedImage img) {
         this.image = img;
         repaint();
     }
 
-    /** Actualizeaza lista de dreptunghiuri + etichete. */
+    /** Updates the list of rectangles + labels. */
     public synchronized void setRects(List<Rect> rs, List<String> lbls) {
         rects.clear(); labels.clear();
         if (rs != null) rects.addAll(rs);
@@ -40,7 +40,7 @@ public class ImagePanel extends JPanel {
         repaint();
     }
 
-    /** Goleste panoul (imagine + dreptunghiuri). */
+    /** Clears the panel (image + rectangles). */
     public synchronized void clear() {
         image = null;
         rects.clear();
@@ -56,7 +56,7 @@ public class ImagePanel extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                              RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
-        // Fit imagine pastrand proportia
+        // Fit the image while keeping the aspect ratio
         int pw = getWidth(), ph = getHeight();
         double ir = (double) image.getWidth() / image.getHeight();
         double pr = (double) pw / ph;
@@ -67,7 +67,7 @@ public class ImagePanel extends JPanel {
         int dy = (ph - dh) / 2;
         g2.drawImage(image, dx, dy, dw, dh, null);
 
-        // Deseneaza dreptunghiuri scalate
+        // Draw the scaled rectangles
         double sx = (double) dw / image.getWidth();
         double sy = (double) dh / image.getHeight();
         g2.setStroke(new BasicStroke(3f));

@@ -1,22 +1,22 @@
 package svm.svm;
 
 /**
- * Kernel Sigmoid (hiperbolic tangent): K(x,y) = tanh(alpha * &lt;x,y&gt; + c).
- * Este kernelul cerut in enuntul problemei pentru SMO.
+ * Sigmoid (hyperbolic tangent) kernel: K(x,y) = tanh(alpha * &lt;x,y&gt; + c).
+ * It is the kernel required by the problem statement for SMO.
  */
 public class SigmoidKernel implements Kernel {
 
     private static final long serialVersionUID = 1L;
 
-    /** Scalare produs scalar */
+    /** Dot-product scaling */
     private final double alpha;
-    /** Deplasare */
+    /** Offset */
     private final double c;
 
     /**
      * Constructor.
-     * @param alpha factor de scalare (tipic 1/nr_caracteristici)
-     * @param c deplasare (tipic 0 sau mic negativ)
+     * @param alpha scaling factor (typically 1/num_features)
+     * @param c offset (typically 0 or a small negative value)
      */
     public SigmoidKernel(double alpha, double c) {
         this.alpha = alpha;

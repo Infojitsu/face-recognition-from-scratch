@@ -5,8 +5,8 @@ import java.util.Arrays;
 import svm.core.Image;
 
 /**
- * Sursa de imagini dintr-un folder local (fallback cand nu exista webcam).
- * Itereaza prin fisierele .jpg / .png din folder in ordine alfabetica.
+ * Image source backed by a local folder (fallback when no webcam is available).
+ * Iterates over the .jpg / .png files in the folder in alphabetical order.
  */
 public class FolderSource implements ImageSource {
 
@@ -22,7 +22,7 @@ public class FolderSource implements ImageSource {
     @Override
     public void open() throws Exception {
         if (!folder.exists() || !folder.isDirectory()) {
-            throw new RuntimeException("Folder inexistent: " + folder);
+            throw new RuntimeException("Folder does not exist: " + folder);
         }
         files = folder.listFiles(f -> {
             String n = f.getName().toLowerCase();

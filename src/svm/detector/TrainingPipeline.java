@@ -13,59 +13,59 @@ import svm.svm.SVM;
 import svm.svm.SigmoidKernel;
 
 /**
- * Pipeline de antrenare pentru:
- *   (a) clasificatorul SVM "cap / nu cap" folosit ca verificator
- *       in HeadDetector. Imaginile pozitive sunt in head_images/positive,
- *       negativele in head_images/negative.
- *   (b) un clasificator SVM pentru fiecare persoana (pe baza folderelor
- *       din hog_vectors/&lt;pseudonym&gt;/ care contin imaginile 128x128).
+ * Training pipeline for:
+ *   (a) the "head / non-head" SVM classifier used as a verifier
+ *       in HeadDetector. Positive images live in head_images/positive,
+ *       negatives in head_images/negative.
+ *   (b) one SVM classifier per person (based on the folders
+ *       in hog_vectors/&lt;pseudonym&gt;/ which contain the 128x128 images).
  *
- * Pentru (a), se foloseste kernel liniar (rapid si suficient pentru
- * cap/non-cap). Pentru (b), se foloseste kernelul Sigmoid, cerut explicit
- * in enunt pentru SMO.
+ * For (a), a linear kernel is used (fast and sufficient for
+ * head/non-head). For (b), the Sigmoid kernel is used, explicitly required
+ * by the problem statement for SMO.
  */
 public class TrainingPipeline {
 
     /**
-     * Antreneaza clasificatorul "cap / non-cap" pentru detectie sliding window.
+     * Trains the "head / non-head" classifier for sliding-window detection.
      *
-     * Poziti:  imaginile din positiveDir (scalate 128x128) + flipurile lor orizontale
-     * Negative: pentru fiecare imagine din negativeDir:
-     *   - daca e deja 128x128, o folosim direct
-     *   - daca e mai mare, extragem mai multe patch-uri 128x128 aleatoare din ea
-     *     (asta simuleaza ferestrele sliding pe care detectorul le va evalua
-     *     la runtime). Asa trainam SVM-ul sa respinga EXACT tipurile de
-     *     ferestre false positives pe care sliding window le-ar genera.
+     * Positives: the images from positiveDir (scaled to 128x128) + their horizontal flips
+     * Negatives: for each image in negativeDir:
+     *   - if it is already 128x128, we use it directly
+     *   - if it is larger, we extract several random 128x128 patches from it
+     *     (this simulates the sliding windows the detector will evaluate
+     *     at runtime). This way we train the SVM to reject EXACTLY the kinds of
+     *     false-positive windows that the sliding window would generate.
      *
-     * @param positiveDir folder cu imagini care contin cap (orice dimensiune)
-     * @param negativeDir folder cu imagini fara cap (ideal poze mari din camera ta)
-     * @return SVM antrenat
+     * @param positiveDir folder with images containing a head (any size)
+     * @param negativeDir folder with images without a head (ideally large photos from your room)
+     * @return trained SVM
      */
     public static SVM trainHeadVerifier(File positiveDir, File negativeDir) throws Exception {
         List<double[]> feats = new ArrayList<>();
         List<Double> lbl = new ArrayList<>();
 
-        // Pozitive + flip orizontal (data augmentation)
+        // Positives + horizontal flip (data augmentation)
         int posCount = loadPositivesAugmented(positiveDir, feats, lbl);
-        System.out.println("  Pozitive incarcate (cu flip): " + posCount);
+        System.out.println("  Positives loaded (with flip): " + posCount);
 
-        // Negative - numar de patch-uri per imagine se adapteaza la cate
-        // imagini avem (pentru a tine totalul sub o limita rezonabila).
+        // Negatives - the number of patches per image adapts to how many
+        // images we have (to keep the total under a reasonable limit).
         int numNegFiles = countImages(negativeDir);
         int negPerImage;
-        if (numNegFiles <= 50) negPerImage = 10;     // putine poze - multe patch-uri
+        if (numNegFiles <= 50) negPerImage = 10;     // few photos - many patches
         else if (numNegFiles <= 150) negPerImage = 5;
         else if (numNegFiles <= 400) negPerImage = 3;
-        else negPerImage = 2;                         // multe poze - putine patch-uri
-        System.out.println("  Folosesc " + negPerImage + " patch-uri/imagine "
-                + "(pentru " + numNegFiles + " imagini)");
+        else negPerImage = 2;                         // many photos - few patches
+        System.out.println("  Using " + negPerImage + " patches/image "
+                + "(for " + numNegFiles + " images)");
         int negCount = loadNegativePatches(negativeDir, feats, lbl, negPerImage);
-        System.out.println("  Negative incarcate (patch-uri): " + negCount);
+        System.out.println("  Negatives loaded (patches): " + negCount);
 
         if (feats.isEmpty() || posCount == 0 || negCount == 0) {
             throw new RuntimeException(
-                "Nu s-au gasit imagini de antrenare suficiente. " +
-                "Pozitive: " + posCount + ", Negative: " + negCount);
+                "Not enough training images found. " +
+                "Positives: " + posCount + ", Negatives: " + negCount);
         }
 
         double[][] X = new double[feats.size()][];
@@ -77,24 +77,24 @@ public class TrainingPipeline {
 
         int n = feats.size();
         long kernelMB = (long)n * n * 8 / (1024 * 1024);
-        System.out.println("  Antrenez SVM pe " + n + " vectori (cache kernel ~"
+        System.out.println("  Training SVM on " + n + " vectors (kernel cache ~"
                 + kernelMB + " MB)...");
-        System.out.println("  Estimat: "
+        System.out.println("  Estimated: "
                 + (n < 1500 ? "30s - 2 min" : n < 3000 ? "2-5 min" : "5-15 min"));
 
         long t0 = System.currentTimeMillis();
         SVM svm = new SVM(new LinearKernel(), 1.0, 1e-3, 10);
         svm.train(X, y);
         long dt = (System.currentTimeMillis() - t0) / 1000;
-        System.out.println("  SVM antrenat in " + dt + "s. SV=" + svm.numSupportVectors());
+        System.out.println("  SVM trained in " + dt + "s. SV=" + svm.numSupportVectors());
         return svm;
     }
 
     /**
-     * Incarca pozitive + versiuni flip orizontal (dublezi setul).
-     * @return numar total de vectori adaugati
+     * Loads positives + horizontally flipped versions (doubles the set).
+     * @return total number of vectors added
      */
-    /** Numara fisierele imagine dintr-un folder. */
+    /** Counts the image files in a folder. */
     private static int countImages(File dir) {
         if (dir == null || !dir.exists()) return 0;
         File[] files = dir.listFiles((f, n) -> {
@@ -121,30 +121,30 @@ public class TrainingPipeline {
             try {
                 bi = ImageIO.read(f);
             } catch (Exception ex) {
-                System.out.println("  [skip] " + f.getName() + " - eroare citire: " + ex.getMessage());
+                System.out.println("  [skip] " + f.getName() + " - read error: " + ex.getMessage());
                 skipped++; continue;
             }
             if (bi == null) {
-                System.out.println("  [skip] " + f.getName() + " - format necunoscut/nesuportat");
+                System.out.println("  [skip] " + f.getName() + " - unknown/unsupported format");
                 skipped++; continue;
             }
             Image im = new Image(bi).scale(HOG.IMG, HOG.IMG);
             feats.add(HOG.compute(im));
             lbl.add(1.0);
             n++;
-            // Flip orizontal (augmentare)
+            // Horizontal flip (augmentation)
             Image flipped = flipHorizontal(im);
             feats.add(HOG.compute(flipped));
             lbl.add(1.0);
             n++;
         }
-        if (skipped > 0) System.out.println("  Pozitive skipped: " + skipped);
+        if (skipped > 0) System.out.println("  Positives skipped: " + skipped);
         return n;
     }
 
     /**
-     * Din fiecare imagine mare din dir, extrage patch-uri 128x128 aleatoare
-     * (la multiple scale) ca negative pentru SVM.
+     * From each large image in dir, extracts random 128x128 patches
+     * (at multiple scales) as negatives for the SVM.
      */
     private static int loadNegativePatches(File dir, List<double[]> feats,
                                              List<Double> lbl, int perImage) throws Exception {
@@ -163,18 +163,18 @@ public class TrainingPipeline {
             try {
                 bi = ImageIO.read(f);
             } catch (Exception ex) {
-                System.out.println("  [skip] " + f.getName() + " - eroare citire: " + ex.getMessage());
+                System.out.println("  [skip] " + f.getName() + " - read error: " + ex.getMessage());
                 skipped++; continue;
             }
             if (bi == null) {
-                System.out.println("  [skip] " + f.getName() + " - format necunoscut/nesuportat");
+                System.out.println("  [skip] " + f.getName() + " - unknown/unsupported format");
                 skipped++; continue;
             }
             Image im = new Image(bi);
             int W = im.getWidth();
             int H = im.getHeight();
 
-            // Daca imaginea e chiar 128x128, o luam direct
+            // If the image is exactly 128x128, use it directly
             if (W <= HOG.IMG + 10 && H <= HOG.IMG + 10) {
                 Image scaled = im.scale(HOG.IMG, HOG.IMG);
                 feats.add(HOG.compute(scaled));
@@ -183,9 +183,9 @@ public class TrainingPipeline {
                 continue;
             }
 
-            // Altfel, extragem patch-uri aleatoare la scale variabile
+            // Otherwise, extract random patches at variable scales
             for (int k = 0; k < perImage; k++) {
-                // Alege o scala aleatoare (128 - min(W,H))
+                // Choose a random scale (128 - min(W,H))
                 int maxSide = Math.min(W, H);
                 int minSide = HOG.IMG;
                 int side = minSide + rng.nextInt(Math.max(1, maxSide - minSide));
@@ -201,11 +201,11 @@ public class TrainingPipeline {
                 n++;
             }
         }
-        if (skipped > 0) System.out.println("  Negative skipped: " + skipped);
+        if (skipped > 0) System.out.println("  Negatives skipped: " + skipped);
         return n;
     }
 
-    /** Flip orizontal al unei imagini. */
+    /** Horizontal flip of an image. */
     private static Image flipHorizontal(Image img) {
         int W = img.getWidth();
         int H = img.getHeight();
@@ -219,19 +219,19 @@ public class TrainingPipeline {
     }
 
     /**
-     * Antreneaza un clasificator pentru fiecare persoana
-     * (imagini persoana = +1, imagini altor persoane = -1).
-     * @param faceDir folder care contine subfoldere per persoana
-     * @param classifierDir folder unde se salveaza clasificatoarele
+     * Trains one classifier per person
+     * (person images = +1, other people's images = -1).
+     * @param faceDir folder containing per-person subfolders
+     * @param classifierDir folder where the classifiers are saved
      */
     public static void trainPersonClassifiers(File faceDir, File classifierDir) throws Exception {
         File[] subs = faceDir.listFiles(File::isDirectory);
         if (subs == null || subs.length < 2) {
             throw new RuntimeException(
-                "E nevoie de cel putin 2 persoane (subfoldere) in " + faceDir);
+                "At least 2 persons (subfolders) are needed in " + faceDir);
         }
 
-        // Pasul 1: extrage vectorii HOG pentru fiecare persoana
+        // Step 1: extract the HOG vectors for each person
         List<String> names = new ArrayList<>();
         List<List<double[]>> perPerson = new ArrayList<>();
         for (File sub : subs) {
@@ -243,15 +243,15 @@ public class TrainingPipeline {
             for (File f : imgs) {
                 Image im = new Image(ImageIO.read(f)).scale(HOG.IMG, HOG.IMG);
                 list.add(HOG.compute(im));
-                // Data augmentation: flip orizontal. Dubleaza efectiv setul
-                // de antrenare si imbunatateste generalizarea - fata umana
-                // e rezonabil de simetrica, flip-ul nu schimba identitatea.
+                // Data augmentation: horizontal flip. Effectively doubles the
+                // training set and improves generalization - the human face
+                // is reasonably symmetric, the flip does not change identity.
                 list.add(HOG.compute(flipHorizontal(im)));
             }
             perPerson.add(list);
         }
 
-        // Pasul 2: pentru fiecare persoana -> SVM one-vs-all
+        // Step 2: for each person -> one-vs-all SVM
         classifierDir.mkdirs();
         for (int p = 0; p < names.size(); p++) {
             List<double[]> pos = perPerson.get(p);
@@ -266,13 +266,13 @@ public class TrainingPipeline {
             for (double[] v : pos) { X[k] = v; y[k] = +1; k++; }
             for (double[] v : neg) { X[k] = v; y[k] = -1; k++; }
 
-            // Kernel Sigmoid (cerinta 7). Alpha = 1/100, nu 1/d=1/8100.
-            // HOG L2-normalized-per-block are dot ~100-150 pentru fete similare,
-            // deci alpha*dot ~1.0-1.5 cade in regiunea neliniara a tanh
-            // (tanh(1)=0.76). Cu alpha=1/d, tanh(0.012)=0.012 - regim liniar,
-            // scoruri finale ±0.01 = flicker/confuzie intre persoane.
-            // maxPasses 20 pentru convergenta SMO mai stabila la kernel
-            // non-liniar (era 10 - uneori insuficient).
+            // Sigmoid kernel (requirement 7). Alpha = 1/100, not 1/d=1/8100.
+            // L2-normalized-per-block HOG has dot ~100-150 for similar faces,
+            // so alpha*dot ~1.0-1.5 falls in the non-linear region of tanh
+            // (tanh(1)=0.76). With alpha=1/d, tanh(0.012)=0.012 - linear regime,
+            // final scores ±0.01 = flicker/confusion between persons.
+            // maxPasses 20 for more stable SMO convergence with a non-linear
+            // kernel (was 10 - sometimes insufficient).
             double alpha = 1.0 / 100.0;
             SVM svm = new SVM(new SigmoidKernel(alpha, 0.0), 1.0, 1e-3, 20);
             svm.train(X, y);
@@ -281,12 +281,12 @@ public class TrainingPipeline {
             Storage.save(pc, new File(classifierDir, names.get(p) + ".dat"));
             System.out.println("  [ok] " + names.get(p)
                     + " | SV=" + svm.numSupportVectors()
-                    + " | imagini_pos=" + pos.size() + " imagini_neg=" + neg.size());
+                    + " | pos_images=" + pos.size() + " neg_images=" + neg.size());
         }
     }
 
     /**
-     * Incarca toate clasificatoarele de persoana din folder.
+     * Loads all person classifiers from the folder.
      */
     public static List<PersonClassifier> loadAll(File classifierDir) throws Exception {
         List<PersonClassifier> out = new ArrayList<>();

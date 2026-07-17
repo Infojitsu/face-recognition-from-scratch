@@ -3,21 +3,21 @@ package svm.util;
 import svm.core.Image;
 
 /**
- * Abstractizeaza sursa de imagini (webcam sau folder local).
- * Permite compilare fara OpenCV: cand OpenCV nu exista, programul
- * poate folosi un FolderImageSource pentru dezvoltare/testare.
+ * Abstracts the image source (webcam or local folder).
+ * Allows compilation without OpenCV: when OpenCV is not present, the program
+ * can use a FolderImageSource for development/testing.
  */
 public interface ImageSource {
 
-    /** Deschide sursa (initializeaza webcam / cursor fisier). */
+    /** Opens the source (initializes the webcam / file cursor). */
     void open() throws Exception;
 
-    /** @return urmatoarea imagine sau null daca sursa s-a terminat */
+    /** @return the next image or null if the source is exhausted */
     Image grab() throws Exception;
 
-    /** Elibereaza resursele. */
+    /** Releases the resources. */
     void close();
 
-    /** @return true daca sursa mai are imagini */
+    /** @return true if the source still has images */
     boolean isOpen();
 }

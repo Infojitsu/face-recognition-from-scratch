@@ -6,26 +6,26 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 
 /**
- * Reprezentare proprie a unei imagini RGB + grayscale.
- * Folosita pentru a evita dependenta de algoritmii BufferedImage la prelucrare.
+ * Custom representation of an RGB + grayscale image.
+ * Used to avoid depending on BufferedImage algorithms during processing.
  */
 public class Image {
 
-    /** Latime imagine in pixeli */
+    /** Image width in pixels */
     private final int width;
-    /** Inaltime imagine in pixeli */
+    /** Image height in pixels */
     private final int height;
-    /** Canal rosu, valori 0..255 */
+    /** Red channel, values 0..255 */
     private final int[][] r;
-    /** Canal verde, valori 0..255 */
+    /** Green channel, values 0..255 */
     private final int[][] g;
-    /** Canal albastru, valori 0..255 */
+    /** Blue channel, values 0..255 */
     private final int[][] b;
 
     /**
-     * Construieste o imagine goala.
-     * @param width latime
-     * @param height inaltime
+     * Builds an empty image.
+     * @param width width
+     * @param height height
      */
     public Image(int width, int height) {
         this.width = width;
@@ -36,8 +36,8 @@ public class Image {
     }
 
     /**
-     * Converteste un BufferedImage la Image intern.
-     * @param bi imaginea Java nativa
+     * Converts a BufferedImage to the internal Image.
+     * @param bi the native Java image
      */
     public Image(BufferedImage bi) {
         this.width = bi.getWidth();
@@ -55,20 +55,20 @@ public class Image {
         }
     }
 
-    /** @return latimea imaginii */
+    /** @return the image width */
     public int getWidth()  { return width;  }
-    /** @return inaltimea imaginii */
+    /** @return the image height */
     public int getHeight() { return height; }
 
-    /** @return valoarea rosu la (x,y) */
+    /** @return the red value at (x,y) */
     public int getR(int x, int y) { return r[y][x]; }
-    /** @return valoarea verde la (x,y) */
+    /** @return the green value at (x,y) */
     public int getG(int x, int y) { return g[y][x]; }
-    /** @return valoarea albastru la (x,y) */
+    /** @return the blue value at (x,y) */
     public int getB(int x, int y) { return b[y][x]; }
 
     /**
-     * Seteaza un pixel RGB.
+     * Sets an RGB pixel.
      */
     public void setRGB(int x, int y, int red, int green, int blue) {
         r[y][x] = red;
@@ -77,9 +77,9 @@ public class Image {
     }
 
     /**
-     * Converteste la matrice de luminanta (grayscale) prin formula Rec. 601:
+     * Converts to a luminance (grayscale) matrix using the Rec. 601 formula:
      * Y = 0.299 R + 0.587 G + 0.114 B
-     * @return matrice [height][width] cu valori 0..255
+     * @return [height][width] matrix with values 0..255
      */
     public double[][] toGrayscale() {
         double[][] gray = new double[height][width];
@@ -92,7 +92,7 @@ public class Image {
     }
 
     /**
-     * Returneaza un subimagine delimitata de pixelii (x1,y1) - (x2,y2), inclusiv.
+     * Returns a sub-image bounded by pixels (x1,y1) - (x2,y2), inclusive.
      */
     public Image crop(int x1, int y1, int x2, int y2) {
         int w = x2 - x1 + 1;
@@ -110,7 +110,7 @@ public class Image {
     }
 
     /**
-     * Scaleaza imaginea la dimensiuni noi folosind interpolare biliniara.
+     * Scales the image to new dimensions using bilinear interpolation.
      */
     public Image scale(int newW, int newH) {
         Image out = new Image(newW, newH);
@@ -131,7 +131,7 @@ public class Image {
         return out;
     }
 
-    /** Interpolare biliniara intre 4 puncte. */
+    /** Bilinear interpolation between 4 points. */
     private static double bilinear(int q00, int q01, int q10, int q11, double dx, double dy) {
         double a = q00 * (1 - dx) + q01 * dx;
         double b = q10 * (1 - dx) + q11 * dx;
@@ -139,7 +139,7 @@ public class Image {
     }
 
     /**
-     * Converteste aceasta imagine intr-un BufferedImage (pentru afisare).
+     * Converts this image to a BufferedImage (for display).
      */
     public BufferedImage toBufferedImage() {
         BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -152,12 +152,12 @@ public class Image {
         return bi;
     }
 
-    /** Incarca imagine dintr-un fisier. */
+    /** Loads an image from a file. */
     public static Image load(File file) throws IOException {
         return new Image(ImageIO.read(file));
     }
 
-    /** Salveaza imaginea ca PNG. */
+    /** Saves the image as PNG. */
     public void saveAsPNG(File file) throws IOException {
         ImageIO.write(toBufferedImage(), "png", file);
     }
